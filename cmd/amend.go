@@ -48,6 +48,9 @@ var amendCmd = &cobra.Command{
 		}
 
 		gitArgs := []string{"commit", "--amend", "--no-edit"}
+		if id != nil {
+			gitArgs = append(gitArgs, "--reset-author")
+		}
 		if sign {
 			gitArgs = append(gitArgs, "-S")
 		}
