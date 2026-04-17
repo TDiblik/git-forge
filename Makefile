@@ -16,19 +16,19 @@ build:
 build-prod:
 	CGO_ENABLED=0 $(GO) build -ldflags="-s -w" -o $(BINARY_DIR)/$(BINARY_NAME) main.go
 
-update:
+update: install
 	$(GO) mod tidy
 	gofmt -w -l .
 
 clean:
 	rm -rf $(BINARY_DIR)
 
-use: build-prod
+use: install build-prod
 	mkdir -p $(INSTALL_PATH)
 	cp $(BINARY_DIR)/$(BINARY_NAME) $(INSTALL_PATH)/$(BINARY_NAME)
 	chmod +x $(INSTALL_PATH)/$(BINARY_NAME)
 	@echo "Done! Try running 'git forge'."
-	@echo "If it does not work, make sure $(INSTALL_PATH) is in your \$PATH"
+	@echo "If it does not work, make sure $(INSTALL_PATH) is in your PATH"
 
 clean-use: clean
 	rm -rf $(INSTALL_PATH)/$(BINARY_NAME)
