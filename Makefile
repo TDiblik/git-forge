@@ -1,8 +1,9 @@
 GO=go
-BINARY_NAME=git-forge
-BINARY_DIR=./bin
+BINARY_NAME = git-forge
+BINARY_DIR = ./bin
+INSTALL_PATH ?= $(HOME)/.local/bin
 
-.PHONY: all build build-prod install update clean
+.PHONY: all build build-prod install update clean use
 
 all: install build
 
@@ -21,3 +22,13 @@ update:
 
 clean:
 	rm -rf $(BINARY_DIR)
+
+use: build-prod
+	mkdir -p $(INSTALL_PATH)
+	cp $(BINARY_DIR)/$(BINARY_NAME) $(INSTALL_PATH)/$(BINARY_NAME)
+	chmod +x $(INSTALL_PATH)/$(BINARY_NAME)
+	@echo "Done! Try running 'git forge'."
+	@echo "If it does not work, make sure $(INSTALL_PATH) is in your \$PATH"
+
+clean-use: clean
+	rm -rf $(INSTALL_PATH)/$(BINARY_NAME)
