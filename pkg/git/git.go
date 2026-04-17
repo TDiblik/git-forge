@@ -89,10 +89,14 @@ func RunGitCommand(args []string, opts CommandOptions) error {
 
 	env := os.Environ()
 	if opts.Identity != nil {
-		env = append(env, fmt.Sprintf("GIT_AUTHOR_NAME=%s", opts.Identity.Name))
-		env = append(env, fmt.Sprintf("GIT_AUTHOR_EMAIL=%s", opts.Identity.Email))
-		env = append(env, fmt.Sprintf("GIT_COMMITTER_NAME=%s", opts.Identity.Name))
-		env = append(env, fmt.Sprintf("GIT_COMMITTER_EMAIL=%s", opts.Identity.Email))
+		if opts.Identity.Name != "" {
+			env = append(env, fmt.Sprintf("GIT_AUTHOR_NAME=%s", opts.Identity.Name))
+			env = append(env, fmt.Sprintf("GIT_COMMITTER_NAME=%s", opts.Identity.Name))
+		}
+		if opts.Identity.Email != "" {
+			env = append(env, fmt.Sprintf("GIT_AUTHOR_EMAIL=%s", opts.Identity.Email))
+			env = append(env, fmt.Sprintf("GIT_COMMITTER_EMAIL=%s", opts.Identity.Email))
+		}
 
 		if opts.Identity.Date != "" {
 			dateStr := opts.Identity.Date
