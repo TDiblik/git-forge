@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 type Identity struct {
@@ -19,6 +21,7 @@ type CommandOptions struct {
 	DryRun     bool
 	Verbose    bool
 	SigningKey string
+	GnuPGHome  string
 	NoSign     bool
 }
 
@@ -52,55 +55,99 @@ func ParseAuthor(authorStr string) (*Identity, error) {
 }
 
 func RunGitCommand(args []string, opts CommandOptions) error {
-	var finalArgs []string
+	var configArgs []string
 
 	if opts.SigningKey != "" {
-		finalArgs = append([]string{"-c", fmt.Sprintf("user.signingkey=%s", opts.SigningKey)}, args...)
+		configArgs = append(configArgs, "-c", "commit.gpgsign=true", "-c", fmt.Sprintf("user.signingkey=%s", opts.SigningKey))
 	} else if opts.NoSign {
-		isCommitCmd := false
-		for _, arg := range args {
-			if arg == "commit" || arg == "rebase" || arg == "amend" {
-				isCommitCmd = true
-				break
-			}
+		configArgs = append(configArgs, "-c", "commit.gpgsign=false")
+	}
+
+	isCommit := false
+	isRebase := false
+	for _, arg := range args {
+		if arg == "commit" {
+			isCommit = true
 		}
-		if isCommitCmd {
-			finalArgs = append(args, "--no-sign")
-		} else {
-			finalArgs = args
+		if arg == "rebase" {
+			isRebase = true
 		}
-	} else {
-		finalArgs = args
+	}
+
+	finalArgs := append(configArgs, args...)
+	if opts.NoSign && opts.SigningKey == "" {
+		if isCommit {
+			finalArgs = append(finalArgs, "--no-gpg-sign")
+		} else if isRebase {
+			finalArgs = append(finalArgs, "--no-sign")
+		}
 	}
 
 	cmd := exec.Command("git", finalArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
+	env := os.Environ()
 	if opts.Identity != nil {
-		env := os.Environ()
 		env = append(env, fmt.Sprintf("GIT_AUTHOR_NAME=%s", opts.Identity.Name))
 		env = append(env, fmt.Sprintf("GIT_AUTHOR_EMAIL=%s", opts.Identity.Email))
 		env = append(env, fmt.Sprintf("GIT_COMMITTER_NAME=%s", opts.Identity.Name))
 		env = append(env, fmt.Sprintf("GIT_COMMITTER_EMAIL=%s", opts.Identity.Email))
 
 		if opts.Identity.Date != "" {
-			env = append(env, fmt.Sprintf("GIT_AUTHOR_DATE=%s", opts.Identity.Date))
-			env = append(env, fmt.Sprintf("GIT_COMMITTER_DATE=%s", opts.Identity.Date))
+			dateStr := opts.Identity.Date
+
+			t, err := time.Parse(time.RFC3339, dateStr)
+			if err != nil {
+				t, err = time.ParseInLocation("2006-01-02T15:04:05", dateStr, time.UTC)
+				if err != nil {
+					t, err = time.Parse("2006-01-02 15:04:05 -0700", dateStr)
+				}
+			}
+
+			if err == nil {
+				dateStr = t.Format("2006-01-02T15:04:05-07:00")
+			}
+
+			env = append(env, fmt.Sprintf("GIT_AUTHOR_DATE=%s", dateStr))
+			env = append(env, fmt.Sprintf("GIT_COMMITTER_DATE=%s", dateStr))
+			env = append(env, "TZ=UTC")
 		}
-		cmd.Env = env
 	}
+
+	if opts.GnuPGHome != "" {
+		absPath, err := filepath.Abs(opts.GnuPGHome)
+		if err == nil {
+			evalPath, err := filepath.EvalSymlinks(absPath)
+			if err == nil {
+				env = append(env, fmt.Sprintf("GNUPGHOME=%s", evalPath))
+			} else {
+				env = append(env, fmt.Sprintf("GNUPGHOME=%s", absPath))
+			}
+		} else {
+			env = append(env, fmt.Sprintf("GNUPGHOME=%s", opts.GnuPGHome))
+		}
+	}
+
+	cmd.Env = env
 
 	if opts.DryRun {
 		fmt.Printf("[DRY-RUN] Executing: git %s\n", strings.Join(finalArgs, " "))
-		if opts.Identity != nil {
-			fmt.Printf("[DRY-RUN] Envs: AUTHOR_NAME=%s, AUTHOR_EMAIL=%s, DATE=%s\n", opts.Identity.Name, opts.Identity.Email, opts.Identity.Date)
+		for _, e := range env {
+			if strings.HasPrefix(e, "GIT_") || strings.HasPrefix(e, "GNUPGHOME") || strings.HasPrefix(e, "TZ") {
+				fmt.Printf("[DRY-RUN] Env: %s\n", e)
+			}
 		}
 		return nil
 	}
 
 	if opts.Verbose {
 		fmt.Printf("Executing: git %s\n", strings.Join(finalArgs, " "))
+		for _, e := range env {
+			if strings.HasPrefix(e, "GNUPGHOME") || strings.HasPrefix(e, "TZ") {
+				fmt.Printf("Env: %s\n", e)
+			}
+		}
 	}
 
 	return cmd.Run()

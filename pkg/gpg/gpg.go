@@ -17,6 +17,16 @@ func NewManager() (*Manager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp GPG dir: %v", err)
 	}
+
+	absPath, err := filepath.Abs(tempDir)
+	if err == nil {
+		evalPath, err := filepath.EvalSymlinks(absPath)
+		if err == nil {
+			return &Manager{TempDir: evalPath}, nil
+		}
+		return &Manager{TempDir: absPath}, nil
+	}
+
 	return &Manager{TempDir: tempDir}, nil
 }
 

@@ -22,7 +22,7 @@ var rewriteCmd = &cobra.Command{
 		targetHash := args[0]
 		amendArgs := []string{"amend"}
 		if rewriteAuthor != "" {
-			amendArgs = append(amendArgs, "--author", fmt.Sprintf("'%s'", rewriteAuthor))
+			amendArgs = append(amendArgs, "--author", rewriteAuthor)
 		}
 		if rewriteVip != "" {
 			amendArgs = append(amendArgs, "--vip", rewriteVip)
@@ -31,7 +31,7 @@ var rewriteCmd = &cobra.Command{
 			amendArgs = append(amendArgs, "--clone", cloneHash)
 		}
 		if customDate != "" {
-			amendArgs = append(amendArgs, "--date", fmt.Sprintf("'%s'", customDate))
+			amendArgs = append(amendArgs, "--date", customDate)
 		}
 		if sign {
 			amendArgs = append(amendArgs, "--sign")

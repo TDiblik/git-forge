@@ -54,6 +54,7 @@ var commitCmd = &cobra.Command{
 				return err
 			}
 			opts.SigningKey = keyID
+			opts.GnuPGHome = gpgMgr.TempDir
 		}
 
 		gitArgs := []string{"commit", "-m", message}

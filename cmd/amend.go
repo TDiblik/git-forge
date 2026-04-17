@@ -45,6 +45,7 @@ var amendCmd = &cobra.Command{
 				return err
 			}
 			opts.SigningKey = keyID
+			opts.GnuPGHome = gpgMgr.TempDir
 		}
 
 		gitArgs := []string{"commit", "--amend", "--no-edit"}
