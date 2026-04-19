@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/TDiblik/git-forge/pkg/git"
 )
 
 type Manager struct {
@@ -36,10 +38,18 @@ func (m *Manager) Cleanup() {
 	}
 }
 
-func (m *Manager) GenerateKey(name, email string, dryRun bool) (string, error) {
+func (m *Manager) GenerateKey(name, email, dateStr string, dryRun bool) (string, error) {
 	if dryRun {
 		fmt.Printf("[DRY-RUN] Generating GPG key for: %s <%s> in %s\n", name, email, m.TempDir)
 		return "DEADBEEF", nil
+	}
+
+	var fixedTimestamp int64
+	if dateStr != "" {
+		t, err := git.ParseDate(dateStr)
+		if err == nil {
+			fixedTimestamp = t.Unix()
+		}
 	}
 
 	config := fmt.Sprintf(`
@@ -59,7 +69,13 @@ Expire-Date: 0
 		return "", fmt.Errorf("failed to write gpg config: %v", err)
 	}
 
-	cmd := exec.Command("gpg", "--batch", "--gen-key", configFile)
+	args := []string{"--batch", "--gen-key"}
+	if fixedTimestamp > 0 {
+		args = append([]string{"--faked-system-time", fmt.Sprintf("%d!", fixedTimestamp)}, args...)
+	}
+	args = append(args, configFile)
+
+	cmd := exec.Command("gpg", args...)
 	cmd.Env = append(os.Environ(), fmt.Sprintf("GNUPGHOME=%s", m.TempDir))
 
 	if out, err := cmd.CombinedOutput(); err != nil {

@@ -25,6 +25,29 @@ type CommandOptions struct {
 	NoSign     bool
 }
 
+func ParseDate(s string) (time.Time, error) {
+	formats := []string{
+		time.RFC3339,
+		"2006-01-02 15:04:05 -0700",
+		"2006-01-02T15:04:05",
+		"2006-01-02 15:04:05",
+		"2006-01-02T15:04:05-07:00",
+	}
+	for _, f := range formats {
+		var t time.Time
+		var err error
+		if strings.Contains(f, "-07") || strings.Contains(f, "Z") {
+			t, err = time.Parse(f, s)
+		} else {
+			t, err = time.ParseInLocation(f, s, time.UTC)
+		}
+		if err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("failed to parse date: %s", s)
+}
+
 func ResolveFromHash(hash string) (*Identity, error) {
 	cmd := exec.Command("git", "show", "-s", "--format=%an|%ae|%ai", hash)
 	out, err := cmd.CombinedOutput()
@@ -49,16 +72,42 @@ func ParseAuthor(authorStr string) (*Identity, error) {
 		return nil, fmt.Errorf("invalid author format, use 'Name <email>'")
 	}
 	parts := strings.Split(authorStr, "<")
-	name := strings.TrimSpace(parts[0])
-	email := strings.Trim(parts[1], "> ")
-	return &Identity{Name: name, Email: email}, nil
+	return &Identity{
+		Name:  strings.TrimSpace(parts[0]),
+		Email: strings.Trim(parts[1], "> "),
+	}, nil
 }
 
 func RunGitCommand(args []string, opts CommandOptions) error {
 	var configArgs []string
+	var gpgTime, gitDate string
+
+	if opts.Identity != nil && opts.Identity.Date != "" {
+		t, err := ParseDate(opts.Identity.Date)
+		if err != nil {
+			return err
+		}
+		gitDate = t.Format(time.RFC3339)
+		gpgTime = t.Format("20060102T150405!")
+	}
 
 	if opts.SigningKey != "" {
 		configArgs = append(configArgs, "-c", "commit.gpgsign=true", "-c", fmt.Sprintf("user.signingkey=%s", opts.SigningKey))
+
+		if opts.GnuPGHome != "" {
+			realGpg, _ := exec.LookPath("gpg")
+			if realGpg == "" {
+				realGpg = "gpg"
+			}
+			wrapper := filepath.Join(opts.GnuPGHome, "gpg-wrapper")
+			timeArg := ""
+			if gpgTime != "" {
+				timeArg = fmt.Sprintf("--faked-system-time \"%s\" ", gpgTime)
+			}
+			content := fmt.Sprintf("#!/bin/sh\nGNUPGHOME=\"%s\" exec \"%s\" --batch --no-tty %s\"$@\"", opts.GnuPGHome, realGpg, timeArg)
+			os.WriteFile(wrapper, []byte(content), 0755)
+			configArgs = append(configArgs, "-c", "gpg.program="+wrapper)
+		}
 	} else if opts.NoSign {
 		configArgs = append(configArgs, "-c", "commit.gpgsign=false")
 	}
@@ -99,38 +148,14 @@ func RunGitCommand(args []string, opts CommandOptions) error {
 		}
 
 		if opts.Identity.Date != "" {
-			dateStr := opts.Identity.Date
-
-			t, err := time.Parse(time.RFC3339, dateStr)
-			if err != nil {
-				t, err = time.ParseInLocation("2006-01-02T15:04:05", dateStr, time.UTC)
-				if err != nil {
-					t, err = time.Parse("2006-01-02 15:04:05 -0700", dateStr)
-				}
-			}
-
-			if err == nil {
-				dateStr = t.Format("2006-01-02T15:04:05-07:00")
-			}
-
-			env = append(env, fmt.Sprintf("GIT_AUTHOR_DATE=%s", dateStr))
-			env = append(env, fmt.Sprintf("GIT_COMMITTER_DATE=%s", dateStr))
+			env = append(env, fmt.Sprintf("GIT_AUTHOR_DATE=%s", gitDate))
+			env = append(env, fmt.Sprintf("GIT_COMMITTER_DATE=%s", gitDate))
 			env = append(env, "TZ=UTC")
 		}
 	}
 
 	if opts.GnuPGHome != "" {
-		absPath, err := filepath.Abs(opts.GnuPGHome)
-		if err == nil {
-			evalPath, err := filepath.EvalSymlinks(absPath)
-			if err == nil {
-				env = append(env, fmt.Sprintf("GNUPGHOME=%s", evalPath))
-			} else {
-				env = append(env, fmt.Sprintf("GNUPGHOME=%s", absPath))
-			}
-		} else {
-			env = append(env, fmt.Sprintf("GNUPGHOME=%s", opts.GnuPGHome))
-		}
+		env = append(env, fmt.Sprintf("GNUPGHOME=%s", opts.GnuPGHome))
 	}
 
 	cmd.Env = env
@@ -171,11 +196,10 @@ func TypoSquat(email string) string {
 }
 
 func ResolveVIP(profile string) (*Identity, error) {
-	id, ok := vip_profiles[strings.ToLower(profile)]
-	if !ok {
-		return nil, fmt.Errorf("unknown VIP profile: %s", profile)
+	if id, ok := vip_profiles[strings.ToLower(profile)]; ok {
+		return id, nil
 	}
-	return id, nil
+	return nil, fmt.Errorf("unknown VIP: %s", profile)
 }
 
 func GetVIPs() []string {

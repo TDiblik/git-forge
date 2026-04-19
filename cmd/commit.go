@@ -49,7 +49,7 @@ var commitCmd = &cobra.Command{
 			}
 			defer gpgMgr.Cleanup()
 
-			keyID, err := gpgMgr.GenerateKey(id.Name, id.Email, dryRun)
+			keyID, err := gpgMgr.GenerateKey(id.Name, id.Email, id.Date, dryRun)
 			if err != nil {
 				return err
 			}
