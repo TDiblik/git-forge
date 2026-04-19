@@ -8,58 +8,49 @@
 You can use the provided `Makefile` to build and install the tool:
 
 ```bash
-# Build for development
-make build
-
-# Build and install to ~/.local/bin/git-forge
+# Build prod and install to ~/.local/bin/git-forge so you can use it like `git forge` right away.
 make use
 
-# Standard Go install
-make install
+# For dev
+make build
 ```
 
 ## Usage
+All commands support global flags like `--dry-run` (to see what would happen without altering the repo) and `--verbose` (for debugging).
 
 ### 1. Creating a Spoofed Commit
-Create a new commit while impersonating a specific identity or using a "VIP" profile.
+Create a new commit while impersonating a specific identity, cloning an existing one, or using a "VIP" profile. For example:
 
 ```bash
-# Using a manual author string
-git-forge commit -m "Sensitive change" --author "Linus Torvalds <torvalds@linux-foundation.org>"
-
-# Using a built-in VIP profile
-git-forge commit -m "Merged PR" --vip satoshi
-
-# Using typo-squatting to mimic an email
-git-forge commit -m "Fix" --typo-squat "ceo@company.com"
+git forge commit -m "Sensitive change" --author "Linus Torvalds <torvalds@linux-foundation.org>";
+git forge commit -m "Merged PR" --vip linus;
+git forge commit -m "Minor fixes" --clone <commit-hash>;
+git forge commit -m "Hotfix" --typo-squat "ceo@company.com";;
+git forge commit -m "Team effort" --vip linus --co-author "Alice <alice@company.com>";
+git forge commit -m "Backdated commit" --vip linus --date "2015-05-05 15:15:15";
 ```
 
 ### 2. Amending HEAD
-Quickly change the identity or date of the most recent commit.
+Quickly change the identity or date of the most recent commit. For example:
 
 ```bash
-# Overwrite HEAD with a VIP identity
-git-forge amend --vip linus
-
-# Change the date of the last commit
-git-forge amend --date "2021-01-01 12:00:00"
+git forge amend --vip linus;
+git forge amend --date "2021-01-01 12:00:00";
 ```
 
 ### 3. Rewriting History (Blame Shifting)
-Rewrite a specific commit in the past using interactive rebase logic.
+Rewrite a specific commit in the past using interactive rebase logic. For example:
 
 ```bash
-# Change the author of a specific commit hash
-git-forge rewrite <commit-hash> --vip dhh
+git forge rewrite <commit-hash> --vip linus
 ```
 
 ### 4. Spoofing GPG Signatures
-Generate a temporary, isolated GPG key for the spoofed identity and sign the commit. This demonstrates how a "Verified" badge can be obtained if the system doesn't enforce a pre-existing trust anchor.
+Generate a temporary, isolated GPG key for the spoofed identity and sign the commit. This demonstrates how a "Verified" badge can be obtained if the system doesn't enforce a pre-existing trust anchor. For example:
 
 ```bash
-# Commit with a temporary GPG signature
-git-forge commit -m "Signed commit" --vip vitalik --sign
+git forge commit -m "Signed commit" --vip vitalik --sign
 ```
 
 ## Disclaimer
-This tool is for **educational and authorized security testing only**. Manipulating Git history and identities can be used for malicious purposes; ensure you have permission before using it on repositories you do not own.
+This tool is for **educational and authorized security testing only**.
